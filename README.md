@@ -2,6 +2,14 @@
 Mnemosyne is a http request caching in memory proxy API.
 ## Status of development
 Work in progress, not functional.
+### TODO
+- [ ] allows to limit cache by size
+- [ ] remove allocation when possible
+- [ ] organize code in modules
+- [ ] tracing
+- [ ] tests
+- [ ] benchmarks
+- [ ] documentation
 ## Description
 Mnemosyne is placed between your load balancer (ex: nginx) and your server applications that needs their requests to be cached. It will optimize the resources by caching responses and adding caching headers that will ask clients to re-use the cache locally. The cache will be expired based on activity and from manual invalidation.
 ## Objectives
