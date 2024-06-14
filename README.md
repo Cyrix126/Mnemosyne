@@ -7,11 +7,13 @@ Mnemosyne is placed between your load balancer (ex: nginx) and your server appli
 ## Objectives
 This software is meant to add caching capability to your backend service without adding any code and be agnostic about them. 
 It must give a very good performance for common usages of websites, but will sacrifice small performance for modularity and easier maintenance.
-For example, the code will always be safe even if unsafe could bring more perfomance.   
+For example, the code will always be safe even if unsafe could bring more performance.   
 ## Features
 - configuration file
 - multiple endpoints possible
 - cache invalidation api
-- well thought expiration of cache
-- use etag and and non-modified headers. Etag takes into account Vary header from server.
+- well thought expiration of cache (thanks moka)
+- add etag header
+- return non modified status when client has a valid etag 
+- takes into account Vary header from server (will save different cache object for every variation of the specified header)
 - let server decide his own caching controls.
