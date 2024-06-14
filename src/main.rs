@@ -18,6 +18,7 @@ use reqwest::{
 };
 use std::{str::FromStr, sync::Arc};
 use tokio::{spawn, sync::Mutex};
+use typesize::TypeSize;
 use url::Url;
 use uuid::Uuid;
 
@@ -45,6 +46,22 @@ impl Cache {
             MokaCache::builder()
                 .name("mnemosyne")
                 .time_to_idle(config.cache.expiration)
+                .weigher(
+                    |_key: &Uuid, (s, h, b): &(StatusCode, HeaderMap, Bytes)| -> u32 {
+                        let s = s.to_string().get_size() as u32;
+                        let h = h.iter().fold(0, |acc, x| {
+                            acc + (x.0.to_string().get_size()
+                                + x.1.to_str().unwrap().to_string().get_size())
+                                as u32
+                        });
+                        let b = b.len() as u32;
+                        // note that the size overhead of the index cache is not taken into account.
+                        // could take about 100B per entry.
+                        s + h + b
+                    },
+                )
+                // This cache will hold up to 32MiB of values.
+                .max_capacity(config.cache.size_limit * 1024 * 1024)
                 .build_with_hasher(ahash::RandomState::new()),
         )
     }

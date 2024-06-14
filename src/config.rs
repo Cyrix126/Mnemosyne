@@ -38,4 +38,6 @@ impl Default for Config {
 pub struct CacheConfig {
     /// cache expiration after last request
     pub expiration: Duration,
+    /// in megabytes, the maximum size of memory the cache can take.
+    pub size_limit: u64,
 }

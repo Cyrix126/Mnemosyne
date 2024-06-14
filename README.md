@@ -3,7 +3,7 @@ Mnemosyne is a http request caching in memory proxy API.
 ## Status of development
 Work in progress, not functional.
 ### TODO
-- [ ] allows to limit cache by size
+- [x] allows to limit cache by size
 - [ ] remove allocation when possible
 - [ ] organize code in modules
 - [ ] tracing
