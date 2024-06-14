@@ -39,7 +39,7 @@ jobs:
     - name: Clippy (fail on warnings)
       run: cargo clippy -- -D warnings
   check:
-    runs-on: uubntu-latest
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - name: Check compilation
