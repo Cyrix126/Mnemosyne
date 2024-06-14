@@ -211,15 +211,15 @@ async fn handler(State(state): State<AppState>, request: Request) -> impl IntoRe
     }
 
     // if response is in cache with valid header if any, return response from cache
-
-    if let Some(uuid) = state.index_cache.lock().await.request_to_uuid(&request) {
-        let rep = state
-            .cache
-            .get(&uuid)
-            .await
-            .expect("a value should be there if index has one");
-        // Body can not be saved in Cache so we save Bytes and convert to body when we need it.
-        return rep.into_response();
+    let index = state.index_cache;
+    if let Some(uuid) = index.lock().await.request_to_uuid(&request) {
+        if let Some(rep) = state.cache.get(&uuid).await {
+            return rep.into_response();
+        } else {
+            // present in index_cache but not in cache, it means it was automatically invalidated.
+            // must update index cache.
+            index.lock().await.delete_uuid_from_index(&uuid);
+        }
     }
 
     // if not in cache, make the request to backend service
@@ -242,7 +242,6 @@ async fn handler(State(state): State<AppState>, request: Request) -> impl IntoRe
             // need to add Etag headers to response
             let uuid = Uuid::new_v4();
 
-            let index = state.index_cache.clone();
             let cache = state.cache.clone();
             rep.headers_mut()
                 .insert(ETAG, HeaderValue::from_str(&uuid.to_string()).unwrap());
@@ -261,7 +260,7 @@ async fn handler(State(state): State<AppState>, request: Request) -> impl IntoRe
                 rep.bytes().await.unwrap(),
             );
 
-            spawn(enc!((uuid, axum_rep) async move {
+            spawn(enc!((uuid, axum_rep, index) async move {
                 // add entry to index cache
                 index.lock().await.add_entry(uuid, req_method, req_uri, req_headers_match_vary);
                 // add response to cache
