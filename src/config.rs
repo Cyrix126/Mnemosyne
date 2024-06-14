@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use axum::http::Uri;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 /// configuration struct.
@@ -30,6 +31,23 @@ impl Default for Config {
             endpoints: Default::default(),
             cache: Default::default(),
             fall_back_endpoint: Url::parse("http://127.0.0.1:1000").unwrap(),
+        }
+    }
+}
+
+impl Config {
+    pub fn to_backend_uri(&self, uri_request: &Uri) -> Url {
+        if let Some((endpoint, url)) = self
+            .endpoints
+            .iter()
+            .find(|b| uri_request.to_string().contains(&format!("^{}", b.0)))
+        {
+            let new_uri = uri_request.to_string().replace(endpoint, "");
+            Url::parse(&format!("{}{}", url, new_uri).replace("//", "/"))
+                .expect("could not parse to Url")
+        } else {
+            // no uri recognized, using fallback backend
+            self.fall_back_endpoint.to_owned()
         }
     }
 }
