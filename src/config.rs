@@ -47,7 +47,8 @@ impl Config {
                 .expect("could not parse to Url")
         } else {
             // no uri recognized, using fallback backend
-            self.fall_back_endpoint.to_owned()
+            Url::parse(&format!("{}{}", self.fall_back_endpoint, uri_request).replace("//", "/"))
+                .expect("could not parse to Url")
         }
     }
 }

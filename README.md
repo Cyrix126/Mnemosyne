@@ -5,8 +5,8 @@ Work in progress, not functional.
 ### TODO
 - [x] allows to limit cache by size
 - [x] organize code in modules
+- [x] tracing
 - [ ] remove allocation when possible
-- [ ] tracing
 - [ ] tests
 - [ ] benchmarks
 - [ ] documentation
