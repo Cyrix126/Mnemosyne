@@ -8,7 +8,7 @@ use axum::{
 };
 use enclose::enc;
 use reqwest::{
-    header::{ETAG, VARY},
+    header::{ETAG, HOST, VARY},
     StatusCode,
 };
 use tokio::spawn;
@@ -79,7 +79,9 @@ pub async fn handler(State(state): State<AppState>, request: Request) -> impl In
         .cloned()
         .unwrap_or(PathAndQuery::from_static(""));
     debug!("response was not cached, requesting backend service");
-    let url_backend = state.config.to_backend_uri(&req_uri);
+    let url_backend = state
+        .config
+        .to_backend_uri(&req_uri, request.headers().get(HOST));
     debug!("Request URI retrieved: {req_uri}");
     debug!("Request URL transmitted:{url_backend}");
     let req = state

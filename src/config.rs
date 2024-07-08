@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use axum::http::uri::PathAndQuery;
+use axum::http::{uri::PathAndQuery, HeaderValue};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -17,7 +17,7 @@ use tracing::debug;
 pub struct Config {
     /// address and port to which Mnemosyne will listen for incoming requests.
     pub listen_address: SocketAddr,
-    /// String is the path mnemosyne will accept request and redirect them to Url
+    /// String is the HOST mnemosyne will accept request and redirect them to Url
     pub endpoints: Vec<(String, Url)>,
     /// if none of the request contained recognized uri or if you want to redirect every request to one backend.
     pub fall_back_endpoint: Url,
@@ -37,24 +37,21 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn to_backend_uri(&self, uri_request: &PathAndQuery) -> Url {
+    pub fn to_backend_uri(&self, uri_req: &PathAndQuery, host: Option<&HeaderValue>) -> Url {
         //todo use regex to get the start of the line
-        if let Some((endpoint, url)) = self
-            .endpoints
-            .iter()
-            .find(|b| uri_request.as_str().starts_with(&b.0))
-        {
-            debug!("endpoint detected: {endpoint}");
-            let new_uri = uri_request.to_string().replace(endpoint, "");
-            debug!("url: {url}");
-            debug!("new uri: {new_uri}");
-            Url::parse(&format!("{}{}", url, new_uri).replace("//", "/"))
-                .expect("could not parse to Url")
-        } else {
-            // no uri recognized, using fallback backend
-            Url::parse(&format!("{}{}", self.fall_back_endpoint, uri_request).replace("//", "/"))
-                .expect("could not parse to Url")
+        if let Some(host) = host {
+            if let Ok(host) = host.to_str() {
+                if let Some((endpoint, url)) = self.endpoints.iter().find(|b| host == b.0) {
+                    debug!("endpoint detected: {endpoint}");
+                    debug!("url: {url}");
+                    return Url::parse(&format!("{}{}", url, uri_req).replace("//", "/"))
+                        .expect("could not parse to Url");
+                }
+            }
         }
+        // no uri recognized, using fallback backend
+        Url::parse(&format!("{}{}", self.fall_back_endpoint, uri_req).replace("//", "/"))
+            .expect("could not parse to Url")
     }
 }
 

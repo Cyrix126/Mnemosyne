@@ -64,8 +64,9 @@ fn new_state(config: Config) -> AppState {
 // backend
 mod test {
     use anyhow::Result;
-    use axum::{routing::get, Router};
+    use axum::{http::HeaderValue, routing::get, Router};
     use axum_test::TestServer;
+    use reqwest::header::HOST;
     use tokio::{net::TcpListener, spawn};
     use url::Url;
 
@@ -92,7 +93,7 @@ mod test {
         // configuration of Mnemosyne
         let config = Config {
             endpoints: vec![(
-                "/test".to_string(),
+                "example.com".to_string(),
                 Url::parse(&format!("http://127.0.0.1:{port}"))?,
             )],
             ..Default::default()
@@ -104,7 +105,10 @@ mod test {
         // start Mnemosyne
         let app = TestServer::new(router).unwrap();
         // send get request for the first time
-        let rep = app.get("/test").await;
+        let rep = app
+            .get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await;
         rep.assert_status_ok();
         Ok(())
     }
