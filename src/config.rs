@@ -3,16 +3,17 @@ use std::{
     time::Duration,
 };
 
-use axum::http::Uri;
+use axum::http::uri::PathAndQuery;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 /// configuration struct.
 /// Example:
 /// listen_port: 9834,
 /// endpoints: [("/api1", "127.0.0.1:3998")]
 /// request /api1/abc
 /// will do 127.0.0.1:3998/abc
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Config {
     /// address and port to which Mnemosyne will listen for incoming requests.
     pub listen_address: SocketAddr,
@@ -36,13 +37,17 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn to_backend_uri(&self, uri_request: &Uri) -> Url {
+    pub fn to_backend_uri(&self, uri_request: &PathAndQuery) -> Url {
+        //todo use regex to get the start of the line
         if let Some((endpoint, url)) = self
             .endpoints
             .iter()
-            .find(|b| uri_request.to_string().contains(&format!("^{}", b.0)))
+            .find(|b| uri_request.as_str().starts_with(&b.0))
         {
+            debug!("endpoint detected: {endpoint}");
             let new_uri = uri_request.to_string().replace(endpoint, "");
+            debug!("url: {url}");
+            debug!("new uri: {new_uri}");
             Url::parse(&format!("{}{}", url, new_uri).replace("//", "/"))
                 .expect("could not parse to Url")
         } else {
@@ -53,7 +58,7 @@ impl Config {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CacheConfig {
     /// cache expiration after last request
     pub expiration: Duration,

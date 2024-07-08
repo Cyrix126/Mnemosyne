@@ -3,7 +3,7 @@ use std::str::FromStr;
 use axum::{
     body::to_bytes,
     extract::{Path, Request, State},
-    http::{HeaderMap, HeaderValue},
+    http::{uri::PathAndQuery, HeaderMap, HeaderValue},
     response::IntoResponse,
 };
 use enclose::enc;
@@ -73,19 +73,23 @@ pub async fn handler(State(state): State<AppState>, request: Request) -> impl In
     // if not in cache, make the request to backend service
     let req_method = request.method().to_owned();
     let req_headers = request.headers().to_owned();
-    let req_uri = request.uri().to_owned();
+    let req_uri = request
+        .uri()
+        .path_and_query()
+        .cloned()
+        .unwrap_or(PathAndQuery::from_static(""));
     debug!("response was not cached, requesting backend service");
     let url_backend = state.config.to_backend_uri(&req_uri);
     debug!("Request URI retrieved: {req_uri}");
     debug!("Request URL transmitted:{url_backend}");
-    match state
+    let req = state
         .client
         .request(request.method().to_owned(), url_backend)
         .headers(request.headers().to_owned())
         .body(to_bytes(request.into_body(), usize::MAX).await.unwrap())
         .send()
-        .await
-    {
+        .await;
+    match req {
         Ok(mut rep) => {
             // first send Response and then cache so client wait as little as possible.
             // need to add Etag headers to response
