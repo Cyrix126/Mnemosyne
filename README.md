@@ -17,10 +17,16 @@ This software is meant to add caching capability to your backend service without
 It must give a very good performance for common usages of websites, but will sacrifice small performance for modularity and easier maintenance if needed.
 ## Features
 - configuration file
-- multiple endpoints possible
+- multiple backend service possible, based on HOST header to decide where to redirect.
+- update rules of redirection without restart or loosing current cache.
 - cache invalidation api
-- well thought expiration of cache (thanks moka)
+- well thought expiration of cache (thanks [moka](https://github.com/moka-rs/moka))
 - add etag header
 - return non modified status when client has a valid etag 
 - takes into account Vary header from server (will save different cache object for every variation of the specified header)
-- let server decide his own caching controls.
+- let backend service decide his own caching controls.
+## Usage
+Configure your reverse proxy to redirect requests you want to cache on Mnemosyne.  
+**Warning**: make sure your reverse proxy does not apply unwanted modification on HOST header of your requests.  
+Configure at start the HOST value that will trigger a redirection to a backend service or use the administrator API of Mnemosyne to configure it at runtime.  
+
