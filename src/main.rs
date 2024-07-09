@@ -87,12 +87,18 @@ fn new_state(config: Config) -> AppState {
 #[cfg(test)]
 // backend
 mod test {
+    use std::time::Duration;
+
     use anyhow::Result;
     use axum::{http::HeaderValue, routing::get, Router};
     use axum_test::TestServer;
-    use reqwest::header::HOST;
-    use tokio::{net::TcpListener, spawn};
+    use reqwest::{
+        header::{ETAG, HOST},
+        StatusCode,
+    };
+    use tokio::{net::TcpListener, spawn, time::sleep};
     use url::Url;
+    use uuid::Uuid;
 
     use crate::{config::Config, new_state, router};
 
@@ -107,9 +113,7 @@ mod test {
         axum::serve(listener, router_backend().into_make_service()).await?;
         Ok(())
     }
-    #[tokio::test]
-    async fn first_request() -> Result<()> {
-        tracing_subscriber::fmt::init();
+    async fn app() -> Result<TestServer> {
         // start backend service
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let port = listener.local_addr().unwrap().port();
@@ -127,13 +131,114 @@ mod test {
         // router
         let router = router().with_state(state);
         // start Mnemosyne
-        let app = TestServer::new(router).unwrap();
+        Ok(TestServer::new(router).unwrap())
+    }
+    #[tokio::test]
+    async fn first_request() -> Result<()> {
+        // tracing_subscriber::fmt::init();
+        let app = app().await.unwrap();
         // send get request for the first time
         let rep = app
             .get("/")
             .add_header(HOST, HeaderValue::from_static("example.com"))
             .await;
         rep.assert_status_ok();
+        Ok(())
+    }
+    #[tokio::test]
+    async fn correct_etag() -> Result<()> {
+        // tracing_subscriber::fmt::init();
+        let app = app().await.unwrap();
+        // send get request for the first time
+        let rep = app
+            .get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await;
+        rep.assert_status_ok();
+        let etag = rep.headers().get(ETAG).unwrap();
+        // wait for the cache to save the entry.
+        sleep(Duration::from_millis(100)).await;
+        // resend same request with the etag
+        let rep = app
+            .get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .add_header(ETAG, etag.clone())
+            .await;
+        // response should only contains header not modified without the body
+        rep.assert_status(StatusCode::NOT_MODIFIED);
+
+        Ok(())
+    }
+    #[tokio::test]
+    async fn incorrect_etag() -> Result<()> {
+        // tracing_subscriber::fmt::init();
+        let app = app().await.unwrap();
+        // send get request for the first time
+        let rep = app
+            .get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await;
+        rep.assert_status_ok();
+        // wait for the cache to save the entry.
+        sleep(Duration::from_millis(100)).await;
+        // resend same request with the etag
+        let etag = Uuid::new_v4().to_string();
+        let rep = app
+            .get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .add_header(ETAG, HeaderValue::from_str(&etag).unwrap())
+            .await;
+        // response should only contains header not modified without the body
+        rep.assert_status(StatusCode::OK);
+        Ok(())
+    }
+    #[tokio::test]
+    async fn cache_served() -> Result<()> {
+        // tracing_subscriber::fmt::init();
+        let app = app().await.unwrap();
+        // send get request for the first time
+        let rep = app
+            .get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await;
+        rep.assert_status_ok();
+        // wait for the cache to save the entry.
+        sleep(Duration::from_millis(100)).await;
+        // check that cache has the entry.
+        let etag = rep.headers().get(ETAG).unwrap();
+        let uri = format!("/api/1/cache/{}", etag.to_str().unwrap());
+        app.get(&uri).await.assert_status_ok();
+        // resend request. response should be served from cache.
+        app.get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await
+            .assert_status_ok();
+        // response should only contains header not modified without the body
+        Ok(())
+    }
+    #[tokio::test]
+    async fn cache_must_be_empty() -> Result<()> {
+        // tracing_subscriber::fmt::init();
+        let app = app().await.unwrap();
+        // send get request for the first time
+        let rep = app
+            .get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await;
+        rep.assert_status_ok();
+        // wait for the cache to save the entry.
+        sleep(Duration::from_millis(100)).await;
+        // delete the entry
+        let etag = rep.headers().get(ETAG).unwrap();
+        let uri = format!("/api/1/cache/{}", etag.to_str().unwrap());
+        app.delete(&uri).await.assert_status_ok();
+        app.get(&uri).await.assert_status_not_found();
+        // resend request. response should be served from cache.
+        app.get("/")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await
+            .assert_status_ok();
+        // response should only contains header not modified without the body
         Ok(())
     }
 }

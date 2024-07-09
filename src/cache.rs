@@ -3,13 +3,13 @@ use std::str::FromStr;
 use axum::body::Bytes;
 use derive_more::{Deref, DerefMut};
 use moka::future::Cache as MokaCache;
-use reqwest::header::HeaderMap;
+use reqwest::header::{HeaderMap, ETAG};
 use reqwest::StatusCode;
 use typesize::TypeSize;
 use uuid::Uuid;
 
 use crate::config::Config;
-#[derive(Deref, DerefMut, Clone)]
+#[derive(Deref, DerefMut, Clone, Debug)]
 pub struct Cache(pub MokaCache<Uuid, (StatusCode, HeaderMap, Bytes), ahash::RandomState>);
 
 impl Cache {
@@ -38,7 +38,7 @@ impl Cache {
         )
     }
     pub fn check_etag(&self, headers: &HeaderMap) -> bool {
-        if let Some(etag) = headers.get("Etag") {
+        if let Some(etag) = headers.get(ETAG) {
             if let Ok(str) = etag.to_str() {
                 if let Ok(uuid) = Uuid::from_str(str) {
                     return self.contains_key(&uuid);

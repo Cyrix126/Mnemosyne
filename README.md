@@ -6,8 +6,8 @@ Work in progress, not functional.
 - [x] allows to limit cache by size
 - [x] organize code in modules
 - [x] tracing
+- [x] tests
 - [ ] remove allocation when possible
-- [ ] tests
 - [ ] benchmarks
 - [ ] documentation
 ## Description
