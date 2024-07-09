@@ -1,49 +1,18 @@
-use std::str::FromStr;
-
-use axum::{
-    body::to_bytes,
-    extract::{Path, Request, State},
-    http::{uri::PathAndQuery, HeaderMap, HeaderValue},
-    response::IntoResponse,
-};
+use crate::index_cache::headers_match_vary;
+use crate::AppState;
+use axum::body::to_bytes;
+use axum::extract::{Request, State};
+use axum::http::{uri::PathAndQuery, HeaderMap, HeaderValue};
+use axum::response::IntoResponse;
 use enclose::enc;
-use reqwest::{
-    header::{ETAG, HOST, VARY},
-    StatusCode,
-};
+use reqwest::header::{ETAG, HOST, VARY};
+use reqwest::StatusCode;
 use tokio::spawn;
 use tracing::{debug, info, trace, warn};
 use uuid::Uuid;
 
-use crate::{
-    index_cache::{headers_match_vary, IndexCache},
-    AppState,
-};
-
-// handle delete endpoint
-// will also delete from index by iterating over the entries to find the method/path
-pub async fn delete_entry(
-    Path(path): Path<String>,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    debug!("new request to delete a cache entry");
-    if let Ok(uuid) = Uuid::from_str(&path) {
-        state.cache.invalidate(&uuid).await;
-        state.index_cache.lock().await.delete_uuid_from_index(&uuid);
-        debug!("cache entry removed");
-        return StatusCode::OK;
-    }
-    warn!("deletion request for invalid uuid");
-    StatusCode::NOT_FOUND
-}
-// handle delete_all endpoint
-pub async fn delete_all(State(state): State<AppState>) -> impl IntoResponse {
-    debug!("new request to delete all cache entries");
-    state.cache.invalidate_all();
-    *state.index_cache.lock().await = IndexCache::new();
-    debug!("all cache cleared");
-    StatusCode::OK
-}
+pub mod cache;
+pub mod config;
 
 // handle request
 pub async fn handler(State(state): State<AppState>, request: Request) -> impl IntoResponse {
@@ -81,6 +50,8 @@ pub async fn handler(State(state): State<AppState>, request: Request) -> impl In
     debug!("response was not cached, requesting backend service");
     let url_backend = state
         .config
+        .lock()
+        .await
         .to_backend_uri(&req_uri, request.headers().get(HOST));
     debug!("Request URI retrieved: {req_uri}");
     debug!("Request URL transmitted:{url_backend}");

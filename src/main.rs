@@ -1,5 +1,13 @@
 use anyhow::Result;
-use axum::{routing::delete, Router};
+use api::cache::{cache_stats, delete_entries, delete_entry, get_cache_entry};
+use api::config::{
+    add_endpoint, delete_endpoint, delete_endpoints, get_fallback_value, set_fallback_value,
+};
+use axum::routing::get;
+use axum::{
+    routing::{delete, post, put},
+    Router,
+};
 use cache::Cache;
 use config::Config;
 use index_cache::IndexCache;
@@ -18,7 +26,7 @@ mod config;
 mod index_cache;
 #[derive(Clone)]
 struct AppState {
-    config: Config,
+    config: Arc<Mutex<Config>>,
     // option HeaderMap is the header request that needs to be present.
     // the response will contains a Vary Header in this case.
     // one method and uri can contain multiple different response based on headers, so we use a Vec per entry since the id of the entry is based on uri and method.
@@ -46,14 +54,30 @@ async fn main() -> Result<()> {
 
 fn router() -> Router<AppState> {
     Router::new()
-        .route("/delete/:uuid", delete(api::delete_entry))
-        .route("/delete_all", delete(api::delete_all))
+        .nest("/api/1/cache", cache_router())
+        .nest("/api/1/config", config_router())
         .fallback(api::handler)
+}
+
+fn cache_router() -> Router<AppState> {
+    Router::new()
+        .route("/:uuid", delete(delete_entry))
+        .route("/:uuid", get(get_cache_entry))
+        .route("/", delete(delete_entries))
+        .route("/", get(cache_stats))
+}
+fn config_router() -> Router<AppState> {
+    Router::new()
+        .route("/endpoint/:endpoint", delete(delete_endpoint))
+        .route("/endpoint/:endpoint", put(add_endpoint))
+        .route("/endpoint", delete(delete_endpoints))
+        .route("/fallback", get(get_fallback_value))
+        .route("/fallback", post(set_fallback_value))
 }
 fn new_state(config: Config) -> AppState {
     AppState {
         cache: Cache::new(&config),
-        config,
+        config: Arc::new(Mutex::new(config)),
         index_cache: Arc::new(Mutex::new(IndexCache::new())),
         client: Client::new(),
     }

@@ -18,13 +18,17 @@ It must give a very good performance for common usages of websites, but will sac
 ## Features
 - configuration file
 - multiple backend service possible, based on HOST header to decide where to redirect.
-- update rules of redirection without restart or loosing current cache.
-- cache invalidation api
 - well thought expiration of cache (thanks [moka](https://github.com/moka-rs/moka))
 - add etag header
 - return non modified status when client has a valid etag 
 - takes into account Vary header from server (will save different cache object for every variation of the specified header)
 - let backend service decide his own caching controls.
+- admin API
+  - update rules of redirection without restart or loosing current cache.
+  - cache invalidation
+  - update fallback
+  - get raw cache content
+  - get stats of cache 
 ## Usage
 Configure your reverse proxy to redirect requests you want to cache on Mnemosyne.  
 **Warning**: make sure your reverse proxy does not apply unwanted modification on HOST header of your requests.  
