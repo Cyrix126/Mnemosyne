@@ -1,7 +1,4 @@
-use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    time::Duration,
-};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use axum::http::{uri::PathAndQuery, HeaderValue};
 use reqwest::Url;
@@ -58,7 +55,7 @@ impl Config {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CacheConfig {
     /// cache expiration after last request
-    pub expiration: Duration,
+    pub expiration: u64,
     /// in megabytes, the maximum size of memory the cache can take.
     pub size_limit: u64,
 }
@@ -68,7 +65,7 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            expiration: Duration::from_secs(2592000),
+            expiration: 2592000,
             size_limit: 250,
         }
     }

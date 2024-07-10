@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::time::Duration;
 
 use axum::body::Bytes;
 use derive_more::{Deref, DerefMut};
@@ -17,7 +18,7 @@ impl Cache {
         Self(
             MokaCache::builder()
                 .name("mnemosyne")
-                .time_to_idle(config.cache.expiration)
+                .time_to_idle(Duration::from_secs(config.cache.expiration))
                 .weigher(
                     |_key: &Uuid, (s, h, b): &(StatusCode, HeaderMap, Bytes)| -> u32 {
                         let s = s.to_string().get_size() as u32;
