@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use crate::index_cache::IndexCache;
 use crate::AppState;
+use aide::axum::IntoApiResponse;
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::{extract::State, response::IntoResponse, Json};
@@ -10,7 +11,7 @@ use tracing::{debug, warn};
 use uuid::Uuid;
 
 // handle get cache endpoint
-pub async fn cache_stats(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn cache_stats(State(state): State<AppState>) -> impl IntoApiResponse {
     debug!("new request to get cache stats");
     let stats = CacheStats {
         name: state.cache.name().unwrap_or_default().to_string(),
@@ -31,7 +32,7 @@ struct CacheStats {
 pub async fn delete_entry(
     Path(path): Path<String>,
     State(state): State<AppState>,
-) -> impl IntoResponse {
+) -> impl IntoApiResponse {
     debug!("new request to delete a cache entry");
     if let Ok(uuid) = Uuid::from_str(&path) {
         state.cache.invalidate(&uuid).await;
@@ -48,7 +49,7 @@ pub async fn delete_entry(
 pub async fn get_cache_entry(
     Path(path): Path<String>,
     State(state): State<AppState>,
-) -> impl IntoResponse {
+) -> impl IntoApiResponse {
     debug!("new request to return a raw cache entry");
     if let Ok(uuid) = Uuid::from_str(&path) {
         if let Some(entry) = state.cache.get(&uuid).await {
@@ -59,7 +60,7 @@ pub async fn get_cache_entry(
     StatusCode::NOT_FOUND.into_response()
 }
 // handle delete_all endpoint
-pub async fn delete_entries(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn delete_entries(State(state): State<AppState>) -> impl IntoApiResponse {
     debug!("new request to delete all cache entries");
     state.cache.invalidate_all();
     *state.index_cache.lock().await = IndexCache::new();

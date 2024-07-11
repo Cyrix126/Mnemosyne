@@ -65,7 +65,7 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            expiration: 2592000,
+            expiration: 300,
             size_limit: 250,
         }
     }

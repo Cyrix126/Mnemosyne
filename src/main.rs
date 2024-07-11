@@ -1,20 +1,24 @@
+use aide::axum::routing::{delete, get, post, put};
+use aide::axum::ApiRouter;
+use aide::openapi::OpenApi;
 use anyhow::Result;
 use api::cache::{cache_stats, delete_entries, delete_entry, get_cache_entry};
 use api::config::{
     add_endpoint, delete_endpoint, delete_endpoints, get_fallback_value, set_fallback_value,
 };
-use axum::routing::get;
-use axum::{
-    routing::{delete, post, put},
-    Router,
-};
+use axum::http::HeaderValue;
+use axum::{Extension, Router};
 use cache::Cache;
 use config::Config;
 use index_cache::IndexCache;
+use reqwest::header::ACCESS_CONTROL_ALLOW_ORIGIN;
 use reqwest::Client;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tracing::info;
+
+use crate::doc::{description_docs, serve_docs};
 
 /// Handlers
 mod api;
@@ -22,6 +26,8 @@ mod api;
 mod cache;
 /// configuration from file
 mod config;
+/// OpenAPI
+mod doc;
 /// IndexCache
 mod index_cache;
 #[derive(Clone)]
@@ -44,35 +50,47 @@ async fn main() -> Result<()> {
     info!("creating the cache and index...");
     let state = new_state(config);
     info!("Done.");
-    // create route for cache API
-    let route = router().with_state(state);
+    let app = app_main(state, OpenApi::default());
     info!("starting to listen on {listen}");
     let listener = tokio::net::TcpListener::bind(listen).await?;
-    axum::serve(listener, route.into_make_service()).await?;
+    axum::serve(listener, app).await?;
     Ok(())
 }
 
-fn router() -> Router<AppState> {
-    Router::new()
-        .nest("/api/1/cache", cache_router())
-        .nest("/api/1/config", config_router())
+fn app_main(state: AppState, mut api: OpenApi) -> Router {
+    ApiRouter::new()
+        .route("/openapi.json", get(serve_docs))
+        .nest("/api/1", router())
         .fallback(api::handler)
+        .finish_api_with(&mut api, description_docs)
+        .layer(Extension(Arc::new(api)))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("*"),
+        ))
+        .with_state(state)
 }
 
-fn cache_router() -> Router<AppState> {
-    Router::new()
-        .route("/:uuid", delete(delete_entry))
-        .route("/:uuid", get(get_cache_entry))
-        .route("/", delete(delete_entries))
-        .route("/", get(cache_stats))
+fn router() -> ApiRouter<AppState> {
+    ApiRouter::new()
+        .nest("/cache", cache_router())
+        .nest("/config", config_router())
 }
-fn config_router() -> Router<AppState> {
-    Router::new()
-        .route("/endpoint/:endpoint", delete(delete_endpoint))
-        .route("/endpoint/:endpoint", put(add_endpoint))
-        .route("/endpoint", delete(delete_endpoints))
-        .route("/fallback", get(get_fallback_value))
-        .route("/fallback", post(set_fallback_value))
+
+fn cache_router() -> ApiRouter<AppState> {
+    ApiRouter::new()
+        .api_route("/:uuid", delete(delete_entry))
+        .api_route("/:uuid", get(get_cache_entry))
+        .api_route("/", delete(delete_entries))
+        .api_route("/", get(cache_stats))
+}
+fn config_router() -> ApiRouter<AppState> {
+    ApiRouter::new()
+        .api_route("/endpoint/:endpoint", delete(delete_endpoint))
+        .api_route("/endpoint/:endpoint", put(add_endpoint))
+        .api_route("/endpoint", delete(delete_endpoints))
+        .api_route("/fallback", get(get_fallback_value))
+        .api_route("/fallback", post(set_fallback_value))
 }
 fn new_state(config: Config) -> AppState {
     AppState {
@@ -89,6 +107,7 @@ fn new_state(config: Config) -> AppState {
 mod test {
     use std::time::Duration;
 
+    use aide::openapi::OpenApi;
     use anyhow::Result;
     use axum::{http::HeaderValue, routing::get, Router};
     use axum_test::TestServer;
@@ -100,7 +119,7 @@ mod test {
     use url::Url;
     use uuid::Uuid;
 
-    use crate::{config::Config, new_state, router};
+    use crate::{app_main, config::Config, new_state};
 
     async fn backend_handler() -> &'static str {
         "Hello, World!"
@@ -129,9 +148,9 @@ mod test {
         // state of Mnemosyne
         let state = new_state(config);
         // router
-        let router = router().with_state(state);
         // start Mnemosyne
-        Ok(TestServer::new(router).unwrap())
+        let app = app_main(state, OpenApi::default());
+        Ok(TestServer::new(app).unwrap())
     }
     #[tokio::test]
     async fn first_request() -> Result<()> {
