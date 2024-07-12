@@ -4,8 +4,10 @@ use crate::index_cache::IndexCache;
 use crate::AppState;
 use aide::axum::IntoApiResponse;
 use axum::extract::Path;
+use axum::http::uri::PathAndQuery;
 use axum::http::StatusCode;
 use axum::{extract::State, response::IntoResponse, Json};
+use reqwest::Method;
 use serde::Serialize;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -29,7 +31,7 @@ struct CacheStats {
 
 // handle delete endpoint
 // will also delete from index by iterating over the entries to find the method/path
-pub async fn delete_entry(
+pub async fn delete_entry_per_uuid(
     Path(path): Path<String>,
     State(state): State<AppState>,
 ) -> impl IntoApiResponse {
@@ -41,6 +43,28 @@ pub async fn delete_entry(
         return StatusCode::OK;
     }
     warn!("deletion request for invalid uuid");
+    StatusCode::NOT_FOUND
+}
+// delete all entries for a given path, only for method GET
+pub async fn delete_entries_per_path(
+    Path(path): Path<String>,
+    State(state): State<AppState>,
+) -> impl IntoApiResponse {
+    debug!("new request to delete a cache entry");
+    let mut index_cache = state.index_cache.lock().await;
+    let mut to_delete = vec![];
+    if let Some(vec) = index_cache.get(&(Method::GET, PathAndQuery::from_str(&path).unwrap())) {
+        for e in vec {
+            state.cache.invalidate(&e.0).await;
+            to_delete.push(e.0);
+        }
+    }
+    if !to_delete.is_empty() {
+        to_delete
+            .iter()
+            .for_each(|uuid| index_cache.delete_uuid_from_index(uuid));
+        return StatusCode::OK;
+    }
     StatusCode::NOT_FOUND
 }
 // handle raw entry endpoint

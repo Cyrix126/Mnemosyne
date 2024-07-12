@@ -2,7 +2,9 @@ use aide::axum::routing::{delete, get, post, put};
 use aide::axum::ApiRouter;
 use aide::openapi::OpenApi;
 use anyhow::Result;
-use api::cache::{cache_stats, delete_entries, delete_entry, get_cache_entry};
+use api::cache::{
+    cache_stats, delete_entries, delete_entries_per_path, delete_entry_per_uuid, get_cache_entry,
+};
 use api::config::{
     add_endpoint, delete_endpoint, delete_endpoints, get_fallback_value, set_fallback_value,
 };
@@ -79,8 +81,9 @@ fn router() -> ApiRouter<AppState> {
 
 fn cache_router() -> ApiRouter<AppState> {
     ApiRouter::new()
-        .api_route("/:uuid", delete(delete_entry))
+        .api_route("/:uuid", delete(delete_entry_per_uuid))
         .api_route("/:uuid", get(get_cache_entry))
+        .api_route("/path/:path", delete(delete_entries_per_path))
         .api_route("/", delete(delete_entries))
         .api_route("/", get(cache_stats))
 }
