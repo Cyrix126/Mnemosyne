@@ -263,4 +263,30 @@ mod test {
         // response should only contains header not modified without the body
         Ok(())
     }
+    #[tokio::test]
+    async fn invalidate_cache_per_path() -> Result<()> {
+        // tracing_subscriber::fmt::init();
+        let app = app().await.unwrap();
+        // send get request for the first time
+        let rep = app
+            .get("/abc")
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await;
+        // wait for the cache to save the entry.
+        sleep(Duration::from_millis(100)).await;
+        // delete the entry per path
+        let etag = rep.headers().get(ETAG).unwrap();
+        let uri = "/api/1/cache/path/abc";
+        app.delete(uri)
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await
+            .assert_status_ok();
+        let uri_uuid = format!("/api/1/cache/{}", etag.to_str().unwrap());
+        app.get(&uri_uuid)
+            .add_header(HOST, HeaderValue::from_static("example.com"))
+            .await
+            .assert_status_not_found();
+
+        Ok(())
+    }
 }

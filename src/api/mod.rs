@@ -41,6 +41,7 @@ pub async fn handler(State(state): State<AppState>, request: Request) -> impl In
 
     // if not in cache, make the request to backend service
     let req_method = request.method().to_owned();
+    let req_host = request.headers().get(HOST).cloned();
     let req_headers = request.headers().to_owned();
     let req_uri = request
         .uri()
@@ -52,7 +53,7 @@ pub async fn handler(State(state): State<AppState>, request: Request) -> impl In
         .config
         .lock()
         .await
-        .to_backend_uri(&req_uri, request.headers().get(HOST));
+        .to_backend_uri(&req_uri, &req_host);
     debug!("Request URI retrieved: {req_uri}");
     debug!("Request URL transmitted:{url_backend}");
     let req = state
@@ -88,11 +89,15 @@ pub async fn handler(State(state): State<AppState>, request: Request) -> impl In
             );
 
             spawn(enc!((uuid, axum_rep, index) async move {
-                debug!("adding the new response to the cache and indexing");
+                if let Some(host) = req_host {
                 // add entry to index cache
-                index.lock().await.add_entry(uuid, req_method, req_uri, req_headers_match_vary);
+                debug!("adding the new response to the cache and indexing");
+                index.lock().await.add_entry(uuid, req_method, req_uri, host, req_headers_match_vary);
                 // add response to cache
                 cache.insert(uuid, axum_rep).await;
+                } else {
+                    warn!("request does not have a HOST header, not adding any entry to cache");
+                }
 
             }));
             debug!("serving new response with added header Etag");

@@ -5,11 +5,14 @@ use axum::http::uri::PathAndQuery;
 use axum::http::HeaderValue;
 use axum::http::{HeaderMap, Request};
 use derive_more::{Deref, DerefMut};
+use reqwest::header::HOST;
 use reqwest::Method;
 use uuid::Uuid;
-#[derive(Deref, DerefMut, Clone)]
-/// IndexCache will store entry for each combination of uri/method with a vec of uuid per HeaderMap. HeaderMap here are request headers that match the headers name in the Vary header value response.
-pub struct IndexCache(pub HashMap<(axum::http::Method, PathAndQuery), Vec<(Uuid, HeaderMap)>>);
+#[derive(Deref, DerefMut, Clone, Debug)]
+/// IndexCache will store entry for each combination of method/uri/host with a vec of uuid per HeaderMap. HeaderMap here are request headers that match the headers name in the Vary header value response.
+pub struct IndexCache(
+    pub HashMap<(axum::http::Method, PathAndQuery, HeaderValue), Vec<(Uuid, HeaderMap)>>,
+);
 
 impl IndexCache {
     pub fn new() -> Self {
@@ -20,9 +23,10 @@ impl IndexCache {
         uuid: Uuid,
         req_method: Method,
         req_uri: PathAndQuery,
+        req_host: HeaderValue,
         req_headers_match_vary: HeaderMap,
     ) {
-        let key = (req_method, req_uri);
+        let key = (req_method, req_uri, req_host);
         let value = (uuid, req_headers_match_vary);
         // check if entry exist for method/uri
 
@@ -43,8 +47,9 @@ impl IndexCache {
             .path_and_query()
             .cloned()
             .unwrap_or(PathAndQuery::from_static(""));
+        let host = request.headers().get(HOST)?;
         let headermap = request.headers();
-        if let Some(uuids) = self.get(&(method, uri.clone())) {
+        if let Some(uuids) = self.get(&(method, uri.clone(), host.clone())) {
             return uuids
                 .iter()
                 .find(|(_, headermap_object)| {

@@ -3,10 +3,11 @@ use std::str::FromStr;
 use crate::index_cache::IndexCache;
 use crate::AppState;
 use aide::axum::IntoApiResponse;
-use axum::extract::Path;
+use axum::extract::{Path, Request};
 use axum::http::uri::PathAndQuery;
 use axum::http::StatusCode;
 use axum::{extract::State, response::IntoResponse, Json};
+use reqwest::header::HOST;
 use reqwest::Method;
 use serde::Serialize;
 use tracing::{debug, warn};
@@ -45,15 +46,26 @@ pub async fn delete_entry_per_uuid(
     warn!("deletion request for invalid uuid");
     StatusCode::NOT_FOUND
 }
-// delete all entries for a given path, only for method GET
+// delete all entries for a given path and HOST, only for method GET
 pub async fn delete_entries_per_path(
     Path(path): Path<String>,
     State(state): State<AppState>,
+    request: Request,
 ) -> impl IntoApiResponse {
     debug!("new request to delete a cache entry");
+    let path = ["/", &path].concat();
     let mut index_cache = state.index_cache.lock().await;
     let mut to_delete = vec![];
-    if let Some(vec) = index_cache.get(&(Method::GET, PathAndQuery::from_str(&path).unwrap())) {
+    let host = if let Some(host) = request.headers().get(HOST) {
+        host
+    } else {
+        return StatusCode::NOT_FOUND;
+    };
+    if let Some(vec) = index_cache.get(&(
+        Method::GET,
+        PathAndQuery::from_str(&path).unwrap(),
+        host.clone(),
+    )) {
         for e in vec {
             state.cache.invalidate(&e.0).await;
             to_delete.push(e.0);

@@ -34,7 +34,7 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn to_backend_uri(&self, uri_req: &PathAndQuery, host: Option<&HeaderValue>) -> Url {
+    pub fn to_backend_uri(&self, uri_req: &PathAndQuery, host: &Option<HeaderValue>) -> Url {
         //todo use regex to get the start of the line
         if let Some(host) = host {
             if let Ok(host) = host.to_str() {
